@@ -30,10 +30,8 @@ void draw() {
     } else {
 
       String[] redPieces = split(line, " ");
-      int value = int(redPieces[1]);
-
-      //if we clicked in the window
-      myPort.write(value);         //send a 1
+      int value = (int(redPieces[1]))/3;
+      myPort.write(value);        
       println(value);
     }
   }

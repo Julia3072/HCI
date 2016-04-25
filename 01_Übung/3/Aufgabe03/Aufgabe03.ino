@@ -1,4 +1,4 @@
- char val; // Data received from the serial port
+ int val; // Data received from the serial port
  int ledPin = 13; // Set the pin to digital I/O 13
 
 
@@ -12,13 +12,13 @@
   void loop() {
    if (Serial.available()) 
    { // If data is available to read,
-     val = Serial.read(); // read it and store it in val
+     val = Serial.parseInt(); // read it and store it in val
    }
-   if (val == '1') 
+   if (val == ) 
    { // If 1 was received
-     digitalWrite(ledPin, HIGH); // turn the LED on
+     analogWrite(ledPin, HIGH); // turn the LED on
    } else {
-     digitalWrite(ledPin, LOW); // otherwise turn it off
+     analogWrite(ledPin, LOW); // otherwise turn it off
    }
    delay(10); // Wait 10 milliseconds for next reading
 }
