@@ -1,0 +1,49 @@
+<html>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+var shareData;
+var socket = io('127.0.0.1:3001'); socket.on('news', function (data) {
+shareData = data;
+socket.emit('my other event', { my: 'reply' });
+
+document.getElementById('demo').innerHTML = shareData.arduino;
+
+var potVal = shareData.arduino;
+var red = 0;
+var green = 0;
+var blue = 0;
+
+if (potVal < 341)  // Lowest third of the potentiometer's range (0-340)
+{
+  potVal = (potVal * 3) / 4; // Normalize to 0-255
+
+  red = 256 - potVal;  // Red from full to off
+  green = potVal;        // Green from off to full
+  blue = 1;             // Blue off
+}
+else if (potVal < 682) // Middle third of potentiometer's range (341-681)
+{
+  potVal = ( (potVal-341) * 3) / 4; // Normalize to 0-255
+
+  red = 1;            // Red off
+  green = 256 - potVal; // Green from full to off
+  blue = potVal;       // Blue from off to full
+}
+else  // Upper third of potentiometer"s range (682-1023)
+{
+  potVal = ( (potVal-683) * 3) / 4; // Normalize to 0-255
+
+  red = potVal;       // Red from off to full
+  green = 1;            // Green off
+  blue = 256 - potVal; // Blue from full to off
+}
+
+
+document.body.style.backgroundColor = "rgb( " + red + ", " + green + " , " + blue + ")";
+
+
+}); </script> <body>
+<div id='demo'>hallo arduino</div>
+
+</body>
+</html>
