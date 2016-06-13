@@ -1,0 +1,19 @@
+Ideensammlung Projekt:
+
+
+Sounds abspielen mit pyhton(im Servercode von Aufgabenblock 3).
+je nach input: zum Beispiel Drumkit
+
+Lautstärke mit potentiometer ändern: 
+http://askubuntu.com/questions/689521/control-volume-using-python-script
+
+
+schlagen/ streicheln erkennen mit haptic sensor:
+streicheln: alle Pins berührt, aber nicht gleichzeitig
+schlagen: min 3 pins in reihe gleichzeitig gedrückt
+
+mit Motor Zipfelmütze aufrichten
+
+Puls mit Vibrationsmotor plus rote LED
+
+SOS nachricht aufs Handy schicken mit Bluetooth (Aufgabe 4.2) bei z.b. geschlagen werden
