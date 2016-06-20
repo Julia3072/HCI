@@ -1,0 +1,58 @@
+MUST HAVE:
+
+#1 Drum Hero
+
+--Reinforcement  :
+Adjust difficulty level
+
+--Physical Artefact:
+Plüschtier
+
+--Interface:
+desktop computer
+
+--Heartbeat:
+it gets more difficult when your pulse is high
+beginner/expert is set based on the heartbeat
+
+Sensors:
+Heartbeat
+Haptic sensors (more?)
+Motor
+
+Contextinformationen!!!
+
+
+
+#2 Heart Race
+
+--Reinforcement Learning:
+If the computer is too fast it gets slower
+
+--Physical Artefact:
+Car
+
+--Interface:
+desktop computer
+
+--Heartbeat sensor:
+In the car
+
+-----
+Sensoren:
+Heartbeat
+
+Horrible Ideas:
+
+Zauberstab
+
+Drum Tisch
+
+Fitnesstrainer: 
+
+Tamgotchi stirbt 
+
+
+
+
+
