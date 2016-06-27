@@ -31,6 +31,7 @@ listen_socket.listen(1)
 print('Serving HTTP on port %s ...')
 
 while True:
+
     try:
         play_sound(parse_arduino_str(ser.readline()))
 
