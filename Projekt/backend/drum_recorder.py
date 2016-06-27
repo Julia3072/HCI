@@ -4,6 +4,8 @@ import socket
 import subprocess
 
 import sys
+import time
+from random import randint
 
 '''
 record drum sounds for reference values
@@ -27,7 +29,7 @@ def play_song(song_nr):
         1: "sounds_json/sample1.mp3",
         2: "sounds_json/sample2.mp3",
     }
-    subprocess.Popen(["afplay", song_map[song_nr]])
+    return subprocess.Popen(["afplay", song_map[song_nr]])
 
 
 # parse RECV b'0\r\n'
@@ -35,15 +37,10 @@ def parse_arduino_str(ard_str):
     return int(str(ard_str).replace("\\n", "").replace("\\r", "").replace("b", "").replace("\'", ""))
 
 
-play_song(int(input("Choose song:\n"
-                    "1. sample1\n"
-                    "2. sample2\n"
-                    "")))
-
 signal.signal(signal.SIGALRM, TimeoutError)
 
 # Establish the connection on a specific port
-ser = serial.Serial("/dev/cu.usbmodem1421", 9600)
+ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
 HOST, PORT = '', 3001
 
 listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -52,30 +49,29 @@ listen_socket.bind((HOST, PORT))
 listen_socket.listen(1)
 print('Serving HTTP on port %s ...')
 
+time.sleep(5)
 
-# TODO send depending on sample
-def send():
-    ser.write("0".encode('ascii'))
+song_id = play_song(1)
 
+# TODO CREATE FILE
+# TODO WRITE TO FILE
+# TODO open sample and loop while playing
+for i in range(sys.maxsize):
 
-def recv():
     try:
+        # steps of 10ms
+        signal.setitimer(signal.ITIMER_REAL, .01)
+
         data = ser.readline()
         play_sound(parse_arduino_str(data))
 
-        # TODO process sound for Q-learning & score
-    except ValueError:
-        print("WRONG DATA INPUT")
+        ser.write("{}{}\n".format(randint(1, 4), randint(0, 3)).encode('ascii'))
 
-
-# TODO open sample
-for i in range(sys.maxsize):
-    try:
-        # steps of 100ms
-        signal.setitimer(signal.ITIMER_REAL, .1)
-
-        recv()
-        send()
+        # TODO store data to json with time step
 
     except TimeoutError:
         pass
+    except ValueError:
+        print("WRONG DATA INPUT")
+    except serial.SerialException:
+        print("SERIAL KILL")

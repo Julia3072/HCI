@@ -1,12 +1,10 @@
+#include <Adafruit_NeoPixel.h>
+#include <Adafruit_MPR121.h>
+
 // #include <Adafruit_TiCoServo.h>
 // #include <known_16bit_timers.h>
 
-#include <Adafruit_NeoPixel.h>
 
-#include <Wire.h>
-#include "Adafruit_MPR121.h"
-
-#include <Adafruit_NeoPixel.h>
 
 // vvvv CapSensor Setup
 Adafruit_MPR121 cap = Adafruit_MPR121();
@@ -33,13 +31,17 @@ int32_t black = strip.Color(0, 0, 0);
 
 
 void setup() {
-// vvvv CapSensor Setup
-//do not start to early
+  // vvvv CapSensor Setup
+  //do not start to early
   while (!Serial);
-        
-  Serial.begin(9600);
-  Serial.println("Adafruit MPR121 Capacitive Touch sensor test"); 
-  
+
+  Serial.begin(115200);
+  Serial.println("Adafruit MPR121 Capacitive Touch sensor test");
+
+   //this will allow the parseInt to read faster and 
+  //the arduino board will responsd faster
+  Serial.setTimeout(50);   
+
   // Default address is 0x5A, if tied to 3.3V its 0x5B
   // If tied to SDA its 0x5C and if SCL then 0x5D
   if (!cap.begin(0x5A)) {
@@ -47,43 +49,45 @@ void setup() {
     while (1);
   }
   Serial.println("MPR121 found!");
-  
+
   uint8_t touch = 70;
   uint8_t rel = 50;
-   cap.setThreshholds( touch,  rel);
-  Serial.print("Thresholds set to ");Serial.print(touch); Serial.print (" and "); Serial.println(rel);
+  cap.setThreshholds( touch,  rel);
+  Serial.print("Thresholds set to "); Serial.print(touch); Serial.print (" and "); Serial.println(rel);
 
-// vvvv Neopixel Setup
+  // vvvv Neopixel Setup
   strip.begin();
   strip.show(); // Initialize all pixels to 'off'
 }
 
 //perform Vergleich von indended Touch und gemessenem Touch
 void loop() {
-int rndm = (int) (Serial.read() - '0');
 
-long t = millis();
-uint8_t pin = 0;
-doBlack();
-switch(rndm){
-  case 0: {setPixels(0,3,blue); Serial.println("<< Blue"); pin= 1; break;}
-  case 1: {setPixels(3,6,red);Serial.println("<< RED");pin= 3;break;}
-  case 2: {setPixels(6,9,green);Serial.println("<< GREEN");pin= 5;break;}
-  case 3: {setPixels(9,12,yellow);Serial.println("<< YELLOW");pin= 7;break;}
+  touchedPin();
+  
+  if (Serial.available()) {
+
+    // TODO check for motor update
+
+    int input = Serial.parseInt();
+
+    if (input > 0) {
+
+      /*
+         red = 1, green = 2, yellow = 3, blue = 4
+         intensity from 0 to 3 lights activated
+      */
+      int color = input / 10;
+      int intensity = input % 10;
+
+      switch (color) {
+        case 1: setPixels(0, 0 + intensity, red); break;
+        case 2: setPixels(3, 3 + intensity, green); break;
+        case 3: setPixels(6, 6 + intensity, yellow); break;
+        case 4: setPixels(9, 9 + intensity, blue); break;
+      }
+    }
   }
-delay(1000);
-
-
-while(millis() - t <5000){
-  if( touchedPin() == pin){
-    doBlinking(100);
-    delay(1000);
-    return;}
-  }
-Serial.println("verpasst");
-doBlack();
-delay(2500);
-
 }
 
 
@@ -91,56 +95,36 @@ delay(2500);
 
 
 
-uint8_t touchedPin(){
+uint8_t touchedPin() {
   // Get the currently touched pads
   currtouched = cap.touched();
   uint8_t result = 0;
-  
-  int threshold_on_alu_things = 100;
-  for(uint8_t i=0; i<12; i++){
-    if ((cap.filteredData(i) <threshold_on_alu_things) && !(lasttouched & _BV(i))){ 
+
+  int threshold_on_alu_things = 50;
+  for (uint8_t i = 0; i < 12; i++) {
+    if ((cap.filteredData(i) < threshold_on_alu_things) && !(lasttouched & _BV(i))) {
       Serial.println(i);
-      result = i;}
+      result = i;
     }
+  }
 
   // reset our state
   lasttouched = currtouched;
 
   return result;
-  }  
-
-
+}
 
 void setPixels(int from, int to, int32_t color) {
 
+  // flash when range 0
+  if (from == to) {
+    color = black;
+    to = from + 3;
+  }
+
   for (uint16_t i = from; i < to; i++) {
     strip.setPixelColor(i, color);
-    strip.show();
-    delay(10);
   }
-
-}
-
-void doBlack() {
-  for (uint16_t i = 0; i < 12; i++) {
-    strip.setPixelColor(i, black);
-    strip.show();
-  }
-
-}
-
-
-void doBlinking(int del) {
-  setPixels(0, 3, blue);
-  delay(del);
-  setPixels(3, 6, green);
-  delay(del);
-  setPixels(6, 9, yellow);
-  delay(del);
-  setPixels(9, 12, red);
-  delay(del);
-
-  doBlack();
-
+  strip.show();
 }
 
