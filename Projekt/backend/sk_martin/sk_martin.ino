@@ -100,7 +100,7 @@ uint8_t touchedPin() {
   currtouched = cap.touched();
   uint8_t result = 0;
 
-  int threshold_on_alu_things = 50;
+  int threshold_on_alu_things = 150;
   for (uint8_t i = 0; i < 12; i++) {
     if ((cap.filteredData(i) < threshold_on_alu_things) && !(lasttouched & _BV(i))) {
       Serial.println(i);

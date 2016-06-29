@@ -1,81 +1,82 @@
 import serial
 import signal
-import socket
 import subprocess
-
+import math
 import sys
+import json
 
 '''
 record drum sounds for reference values
 '''
 
-
-# mapping capacitive sensor to sound
-def play_sound(touch):
-    sound_map = {
-        1: "sounds_mp3/CH.mp3",
-        3: "sounds_mp3/CL.mp3",
-        5: "sounds_mp3/RS.mp3",
-        7: "sounds_mp3/SD0000.mp3"
-    }
-    subprocess.Popen(["afplay", sound_map[touch]])
-
-
-# playing background song
-def play_song(song_nr):
-    song_map = {
-        1: "sounds_json/sample1.mp3",
-        2: "sounds_json/sample2.mp3",
-    }
-    return subprocess.Popen(["afplay", song_map[song_nr]])
+sound_map = {
+    1: "sounds_mp3/CH.mp3",
+    2: "sounds_mp3/CL.mp3",
+    3: "sounds_mp3/RS.mp3",
+    4: "sounds_mp3/SD0000.mp3"
+}
+color_map = {
+    1: "red",
+    2: "green",
+    3: "yellow",
+    4: "blue"
+}
 
 
-# parse RECV b'0\r\n'
-def parse_arduino_str(ard_str):
-    return int(str(ard_str).replace("\\n", "").replace("\\r", "").replace("b", "").replace("\'", ""))
+def handle_sound_ext(sid):
+    # mapping capacitive sensor to sound
+    subprocess.Popen(["afplay", sound_map[int(sid)]])
 
+    # red = 1, green = 2, yellow = 3, blue = 4
+    # intensity from 0 to 3 lights activated
+    ser.write("{}{}\n".format(sid, 3).encode('ascii'))
+
+
+def handle_sound_int(sid, sdesc, timeslot):
+    sdesc[color_map[sid]].append(timeslot)
+
+
+ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
+
+song_name = input("Enter mp3 filename (w/o ending): ")
+curr_song = subprocess.Popen(["afplay", "sounds_json/{}.mp3".format(song_name)])
 
 signal.signal(signal.SIGALRM, TimeoutError)
 
-# Establish the connection on a specific port
-ser = serial.Serial("/dev/cu.usbmodem1421", 9600)
-HOST, PORT = '', 3001
+with open("sounds_json/{}.json".format(song_name), 'r', encoding='utf-8') as song_res:
 
-listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-listen_socket.bind((HOST, PORT))
-listen_socket.listen(1)
-print('Serving HTTP on port %s ...')
+    song_res = json.loads(song_res.readlines()[0])
+    red, blue, green, yellow = list(song_res["red"]), song_res["blue"], song_res["green"], song_res["yellow"]
 
+    print(song_res)
 
-# TODO send depending on sample
-def update_colors():
-    ser.write("0".encode('ascii'))
+    # loop over timeslots while song is playing
+    for i in range(sys.maxsize):
 
+        if curr_song.poll() is not None:
+            break
 
-def process_touch():
-    try:
-        data = ser.readline()
-        play_sound(parse_arduino_str(data))
+        try:
 
-        # TODO process sound for Q-learning & score
-    except ValueError:
-        print("WRONG DATA INPUT")
+            # steps of 10ms
+            signal.setitimer(signal.ITIMER_REAL, .01)
 
+            if len(red) > 0 and red[0] == i:
+                handle_sound_ext(1)
+                red.pop(0)
+                print(red)
 
-song_id = play_song(int(input("Choose song:\n"
-                              "1. sample1\n"
-                              "2. sample2\n"
-                              "")))
+            '''
+            data = ser.readline()
 
-# TODO open sample and loop while playing
-for i in range(sys.maxsize):
-    try:
-        # steps of 100ms
-        signal.setitimer(signal.ITIMER_REAL, .1)
+            sound_id = math.ceil(int(data) / 2)
 
-        process_touch()
-        update_colors()
+            handle_sound_ext(sound_id)
+            handle_sound_int(sound_id, song_desc, i)
+            '''
 
-    except TimeoutError:
-        pass
+        # timeout as accepted failure
+        except TimeoutError:
+            pass
+        except (ValueError, KeyError, serial.SerialException) as e:
+            print(e)

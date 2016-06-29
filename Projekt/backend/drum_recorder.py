@@ -1,77 +1,94 @@
+from threading import Timer
+
 import serial
 import signal
-import socket
 import subprocess
-
+import math
 import sys
-import time
-from random import randint
+import json
+from multiprocessing import Process, Manager
 
 '''
 record drum sounds for reference values
 '''
 
+sound_map = {
+    1: "sounds_mp3/CH.mp3",
+    2: "sounds_mp3/CL.mp3",
+    3: "sounds_mp3/RS.mp3",
+    4: "sounds_mp3/SD0000.mp3"
+}
+color_map = {
+    1: "red",
+    2: "green",
+    3: "yellow",
+    4: "blue"
+}
 
-# mapping capacitive sensor to sound
-def play_sound(touch):
-    sound_map = {
-        1: "sounds_mp3/CH.mp3",
-        3: "sounds_mp3/CL.mp3",
-        5: "sounds_mp3/RS.mp3",
-        7: "sounds_mp3/SD0000.mp3"
-    }
-    subprocess.Popen(["afplay", sound_map[touch]])
-
-
-# playing background song
-def play_song(song_nr):
-    song_map = {
-        1: "sounds_json/sample1.mp3",
-        2: "sounds_json/sample2.mp3",
-    }
-    return subprocess.Popen(["afplay", song_map[song_nr]])
+itt = 0
 
 
-# parse RECV b'0\r\n'
-def parse_arduino_str(ard_str):
-    return int(str(ard_str).replace("\\n", "").replace("\\r", "").replace("b", "").replace("\'", ""))
+def handle_sound_ext(sid):
+    # mapping capacitive sensor to sound
+    subprocess.Popen(["afplay", sound_map[int(sid)]])
 
+    # red = 1, green = 2, yellow = 3, blue = 4
+    # intensity from 0 to 3 lights activated
+    ser.write("{}{}\n".format(sid, 3).encode('ascii'))
+
+
+def handle_sound_int(sid, timeslot, _sd):
+    tmp = _sd[color_map[sid]]
+    tmp.append(timeslot)
+    _sd[color_map[sid]] = tmp
+    print(_sd)
+
+
+def tick(timeslot, _sd):
+    data = ser.readline()
+
+    sound_id = math.ceil(int(data) / 2)
+
+    handle_sound_ext(sound_id)
+    handle_sound_int(sound_id, timeslot, _sd)
+
+
+ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
+
+song_desc = Manager().dict()
+
+song_desc["song_name"] = input("Enter mp3 filename (w/o ending): ")
+song_desc["red"], song_desc["green"], song_desc["yellow"], song_desc["blue"] = [], [], [], []
+
+curr_song = subprocess.Popen(["afplay", "sounds_json/{}.mp3".format(song_desc["song_name"])])
 
 signal.signal(signal.SIGALRM, TimeoutError)
 
-# Establish the connection on a specific port
-ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
-HOST, PORT = '', 3001
-
-listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-listen_socket.bind((HOST, PORT))
-listen_socket.listen(1)
-print('Serving HTTP on port %s ...')
-
-time.sleep(5)
-
-song_id = play_song(1)
-
-# TODO CREATE FILE
-# TODO WRITE TO FILE
-# TODO open sample and loop while playing
+# loop over timeslots while song is playing
 for i in range(sys.maxsize):
 
+    if curr_song.poll() is not None:
+        break
+
     try:
-        # steps of 10ms
-        signal.setitimer(signal.ITIMER_REAL, .01)
 
-        data = ser.readline()
-        play_sound(parse_arduino_str(data))
+        p = Process(target=tick, name="Tick", args=(i, song_desc))
+        p.start()
+        # 50ms
+        p.join(0.05)
 
-        ser.write("{}{}\n".format(randint(1, 4), randint(0, 3)).encode('ascii'))
+        # If thread is active
+        if p.is_alive():
+            p.terminate()
+            p.join()
 
-        # TODO store data to json with time step
-
+    # timeout as accepted failure
     except TimeoutError:
         pass
-    except ValueError:
-        print("WRONG DATA INPUT")
-    except serial.SerialException:
-        print("SERIAL KILL")
+    except (ValueError, KeyError, serial.SerialException) as e:
+        print(e)
+
+print(song_desc)
+
+with open("sounds_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
+    song_res.write(json.dumps(dict(song_desc)))
