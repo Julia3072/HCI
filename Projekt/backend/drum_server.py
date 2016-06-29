@@ -1,12 +1,14 @@
-import serial
-import signal
-import subprocess
-import math
-import sys
-import json
+from json import dumps, loads
+from math import ceil
+from multiprocessing import Process, Manager
+from serial import Serial, SerialException
+from subprocess import Popen
+from sys import maxsize
+
+# TODO completely rewrite
 
 '''
-record drum sounds for reference values
+recording drum sounds for reference values
 '''
 
 sound_map = {
@@ -23,60 +25,66 @@ color_map = {
 }
 
 
-def handle_sound_ext(sid):
+def handle_sound(sid):
     # mapping capacitive sensor to sound
-    subprocess.Popen(["afplay", sound_map[int(sid)]])
+    Popen(["afplay", sound_map[int(sid)]])
 
+
+def process_lighting(color_id, intensity):
     # red = 1, green = 2, yellow = 3, blue = 4
     # intensity from 0 to 3 lights activated
-    ser.write("{}{}\n".format(sid, 3).encode('ascii'))
+    serial.write("{}{}\n".format(color_id, intensity).encode('ascii'))
 
 
-def handle_sound_int(sid, sdesc, timeslot):
-    sdesc[color_map[sid]].append(timeslot)
+# function wrapper for process
+def tick(timeslot, _sd):
+    try:
+
+        data = serial.readline()
+
+        sound_id = ceil(int(data) / 2)
+
+        handle_sound(sound_id)
+
+    except ValueError:
+        pass
+    except (KeyError, SerialException) as e:
+        print(e)
 
 
-ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
-
+# adjust serial port according to arduino connection
+serial = Serial("/dev/cu.usbmodem1411", 115200)
 song_name = input("Enter mp3 filename (w/o ending): ")
-curr_song = subprocess.Popen(["afplay", "sounds_json/{}.mp3".format(song_name)])
+curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_name)])
 
-signal.signal(signal.SIGALRM, TimeoutError)
-
-with open("sounds_json/{}.json".format(song_name), 'r', encoding='utf-8') as song_res:
-
-    song_res = json.loads(song_res.readlines()[0])
-    red, blue, green, yellow = list(song_res["red"]), song_res["blue"], song_res["green"], song_res["yellow"]
-
-    print(song_res)
+with open("sounds_json/{}.json".format(song_name), "r") as song_res:
+    song_res = loads(song_res.readlines()[0])
 
     # loop over timeslots while song is playing
-    for i in range(sys.maxsize):
+    for i in range(maxsize):
 
+        # break if background song is not playing
         if curr_song.poll() is not None:
             break
 
-        try:
+        # TODO check lists for close events
 
-            # steps of 10ms
-            signal.setitimer(signal.ITIMER_REAL, .01)
+        if song_res["red"][0] == i:
+            tmp = song_res["red"]
+            tmp.pop(0)
+            song_res["red"] = tmp
+            print(i)
+            handle_sound(1)
+            process_lighting(1, 3)
+        else:
+            process_lighting(1, 0)
 
-            if len(red) > 0 and red[0] == i:
-                handle_sound_ext(1)
-                red.pop(0)
-                print(red)
+        p = Process(target=tick, name="Tick", args=(i, song_res))
+        p.start()
 
-            '''
-            data = ser.readline()
+        # wait 50ms for thread
+        p.join(0.05)
 
-            sound_id = math.ceil(int(data) / 2)
-
-            handle_sound_ext(sound_id)
-            handle_sound_int(sound_id, song_desc, i)
-            '''
-
-        # timeout as accepted failure
-        except TimeoutError:
-            pass
-        except (ValueError, KeyError, serial.SerialException) as e:
-            print(e)
+        if p.is_alive():
+            p.terminate()
+            p.join()
