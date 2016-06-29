@@ -1,7 +1,4 @@
-from threading import Timer
-
-import serial
-import signal
+from serial import Serial, SerialException
 import subprocess
 import math
 import sys
@@ -25,8 +22,6 @@ color_map = {
     4: "blue"
 }
 
-itt = 0
-
 
 def handle_sound_ext(sid):
     # mapping capacitive sensor to sound
@@ -37,11 +32,10 @@ def handle_sound_ext(sid):
     ser.write("{}{}\n".format(sid, 3).encode('ascii'))
 
 
-def handle_sound_int(sid, timeslot, _sd):
-    tmp = _sd[color_map[sid]]
-    tmp.append(timeslot)
-    _sd[color_map[sid]] = tmp
-    print(_sd)
+def handle_sound_int(sid, timeslot, sd):
+    _sd = sd[color_map[sid]]
+    _sd.append(timeslot)
+    sd[color_map[sid]] = _sd
 
 
 def tick(timeslot, _sd):
@@ -53,20 +47,19 @@ def tick(timeslot, _sd):
     handle_sound_int(sound_id, timeslot, _sd)
 
 
-ser = serial.Serial("/dev/cu.usbmodem1411", 115200)
+# adjust serial port according to arduino connection
+ser = Serial("/dev/cu.usbmodem1411", 115200)
 
-song_desc = Manager().dict()
+# proxy dict to share across different processes
+song_desc = Manager().dict({"song_name": input("Enter mp3 filename (w/o ending): "),
+                            "green": [], "red": [], "blue": [], "yellow": []})
 
-song_desc["song_name"] = input("Enter mp3 filename (w/o ending): ")
-song_desc["red"], song_desc["green"], song_desc["yellow"], song_desc["blue"] = [], [], [], []
-
-curr_song = subprocess.Popen(["afplay", "sounds_json/{}.mp3".format(song_desc["song_name"])])
-
-signal.signal(signal.SIGALRM, TimeoutError)
+curr_song = subprocess.Popen(["afplay", "sounds_mp3/{}.mp3".format(song_desc["song_name"])])
 
 # loop over timeslots while song is playing
 for i in range(sys.maxsize):
 
+    # break if background song is not playing
     if curr_song.poll() is not None:
         break
 
@@ -74,18 +67,18 @@ for i in range(sys.maxsize):
 
         p = Process(target=tick, name="Tick", args=(i, song_desc))
         p.start()
-        # 50ms
+
+        # wait 50ms for thread
         p.join(0.05)
 
-        # If thread is active
         if p.is_alive():
             p.terminate()
             p.join()
 
     # timeout as accepted failure
-    except TimeoutError:
+    except (TimeoutError, ValueError):
         pass
-    except (ValueError, KeyError, serial.SerialException) as e:
+    except (KeyError, SerialException) as e:
         print(e)
 
 print(song_desc)
