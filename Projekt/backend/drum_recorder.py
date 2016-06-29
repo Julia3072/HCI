@@ -34,9 +34,7 @@ def handle_sound_ext(sid):
 
 # add color/timeslot to json
 def handle_sound_int(sid, timeslot, sd):
-    _sd = sd[color_map[sid]]
-    _sd.append(timeslot)
-    sd[color_map[sid]] = _sd
+    sd[color_map[sid]] = sd[color_map[sid]] + [timeslot]
 
 
 # function wrapper for process
@@ -76,8 +74,8 @@ for i in range(maxsize):
     p = Process(target=tick, name="Tick", args=(i, song_desc))
     p.start()
 
-    # wait 50ms for thread
-    p.join(0.05)
+    # wait 20ms for thread
+    p.join(0.02)
 
     if p.is_alive():
         p.terminate()

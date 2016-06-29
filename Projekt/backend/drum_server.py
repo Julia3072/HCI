@@ -1,9 +1,12 @@
-from json import dumps, loads
+from json import loads
 from math import ceil
 from multiprocessing import Process, Manager
+
 from serial import Serial, SerialException
 from subprocess import Popen
+
 from sys import maxsize
+import time
 
 # TODO completely rewrite
 
@@ -25,26 +28,51 @@ color_map = {
 }
 
 
+# playing sound after cap sensor pressed
 def handle_sound(sid):
-    # mapping capacitive sensor to sound
     Popen(["afplay", sound_map[int(sid)]])
 
 
+# writes color changes to arduino
 def process_lighting(color_id, intensity):
-    # red = 1, green = 2, yellow = 3, blue = 4
-    # intensity from 0 to 3 lights activated
     serial.write("{}{}\n".format(color_id, intensity).encode('ascii'))
 
 
+# turns of lights after indication from song_ref
+def process_lighting_turn_off(color_id):
+    time.sleep(1)
+    process_lighting(color_id, 0)
+
+
+def check_light_queues(timeslot, _sref):
+    for j in range(1, 5):
+
+        # if sound played within next 20 timeslots
+        if len(_sref[color_map[j]]) > 0 and timeslot + 100 > _sref[color_map[j]][0]:
+            # update reference and discard fist element
+            _sref[color_map[j]] = _sref[color_map[j]][1:-1]
+
+            process_lighting(j, 3)
+
+            # spawn background process to disable light
+            Process(target=process_lighting_turn_off, args=(j,)).start()
+            return True
+    return False
+
+
 # function wrapper for process
-def tick(timeslot, _sd):
+def tick(timeslot, _sref):
     try:
 
-        data = serial.readline()
+        # if arduino needs lighting update only do this to not overwrite serial
+        if check_light_queues(timeslot, _sref):
+            time.sleep(0.02)
 
-        sound_id = ceil(int(data) / 2)
+        # blocks until sound int on serial and plays it
+        handle_sound(ceil(int(serial.readline()) / 2))
 
-        handle_sound(sound_id)
+        # makes sure process does not return early
+        time.sleep(0.02)
 
     except ValueError:
         pass
@@ -57,33 +85,23 @@ serial = Serial("/dev/cu.usbmodem1411", 115200)
 song_name = input("Enter mp3 filename (w/o ending): ")
 curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_name)])
 
-with open("sounds_json/{}.json".format(song_name), "r") as song_res:
-    song_res = loads(song_res.readlines()[0])
+with open("sounds_json/{}.json".format(song_name), "r") as song_ref:
+    song_ref = loads(song_ref.readlines()[0])
+    # init reference dictionary
+    song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
 
-    # loop over timeslots while song is playing
+    # loop over timeslots
     for i in range(maxsize):
 
         # break if background song is not playing
         if curr_song.poll() is not None:
             break
 
-        # TODO check lists for close events
-
-        if song_res["red"][0] == i:
-            tmp = song_res["red"]
-            tmp.pop(0)
-            song_res["red"] = tmp
-            print(i)
-            handle_sound(1)
-            process_lighting(1, 3)
-        else:
-            process_lighting(1, 0)
-
-        p = Process(target=tick, name="Tick", args=(i, song_res))
+        p = Process(target=tick, args=(i, song_ref))
         p.start()
 
-        # wait 50ms for thread
-        p.join(0.05)
+        # wait 20ms for thread
+        p.join(0.02)
 
         if p.is_alive():
             p.terminate()
