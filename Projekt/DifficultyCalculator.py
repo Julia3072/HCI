@@ -42,7 +42,8 @@ class DifficultyCalculator:
             #get minimum
             minimum = min(currents);
             numberCurrents = 0;
-            difficulty = 0;
+            difficultyNumber = 0;
+            difficultyTime = 0;
 
             #count how many of these entries are the minimum and increase counter
             if c_green < len(green) and green[c_green] == minimum:
@@ -60,9 +61,9 @@ class DifficultyCalculator:
 
             #transform to difficulty
             if numberCurrents == 1:
-                difficulty += 1;
+                difficultyNumber += 1;
             else:
-                difficulty += 3;
+                difficultyNumber += 3;
 
             #get time between last and current key
             diff = minimum - oldTime;
@@ -70,23 +71,22 @@ class DifficultyCalculator:
 
             #transform to diffculty
             if diff < self.bound_high:
-                difficulty += 3;
+                difficultyTime += 3;
             else:
                 if self.bound_high <= diff and diff < self.bound_low:
-                    difficulty += 2;
+                    difficultyTime += 2;
                 else:
-                    difficulty += 1;
+                    difficultyTime += 1;
 
             #add to values
-            values.append(difficulty);
+            values.append(difficultyNumber * difficultyTime);
 
         return sum(values)/len(values);
-
 
     def getScore(self):
         difficulty = self.calculateDifficulty();
         return int(self.maxScore - 10 * difficulty + 0.5);
 
 
-calc = DifficultyCalculator("song.json");
+calc = DifficultyCalculator("backend/reference_song.json");
 print(calc.getScore());
