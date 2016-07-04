@@ -7,6 +7,7 @@ from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize, exit
 from time import sleep
+import math
 
 '''
 game loop for playing
@@ -24,7 +25,7 @@ color_map = {
     3: "yellow",
     4: "blue"
 }
-latency_light, max_tick = 100, 0.02
+latency_light, latency_correct, max_tick = 100, 20, 0.02
 
 
 # writes color changes to arduino
@@ -40,12 +41,14 @@ def process_lights_turn_off(color_id: int):
     process_lighting(color_id, 0)
 
 
-def update_lights(timeslot: int, _sref):
+def update_lights(timeslot: int, _sref, _curr_play):
     for j in range(1, 5):
 
         # if sound played within next 20 timeslots
         if len(_sref[color_map[j]]) > 0 and timeslot + latency_light > _sref[color_map[j]][0]:
             process_lighting(j, 3)
+
+            _curr_play[j - 1] = _sref[color_map[j]][0]
 
             # update reference and discard fist element
             _sref[color_map[j]] = _sref[color_map[j]][1:-1]
@@ -58,18 +61,24 @@ def update_lights(timeslot: int, _sref):
 
 
 # function wrapper for process
-def tick(timeslot: int, _sref):
+def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg):
     try:
 
         # if arduino needs lighting update only do this to not overwrite serial
-        update_lights(timeslot, _sref)
+        update_lights(timeslot, _sref, _curr_ply)
 
         data_in = int(ceil(int(serial.readline()) / 2))
+        print(data_in)
 
-        # TODO add to new reference file of song
-        # TODO maybe compare to currently first in sound queue
         # blocks until sound int on serial and plays it
         Popen(["afplay", sound_map[data_in]])
+
+        _n_insg.value += 1
+
+        # if played in bounds
+        if timeslot - latency_correct < _curr_ply[data_in - 1] < timeslot + latency_correct:
+            _n_corr.value += 1
+            _curr_ply[data_in] = -100
 
         # makes sure process does not return early
         sleep(max_tick)
@@ -91,9 +100,13 @@ while True:
     with open("sounds_json/{}.json".format(song_name), "r") as song_ref:
         song_ref = loads(song_ref.readlines()[0])
         # init reference dictionary
-        song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
 
-        # TODO generate array with currently to play sounds
+        song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
+        sums_ref = sum([len(song_ref[color_map[x]]) for x in range(1, 5)])
+
+        # init scores
+        curr_ply = Manager().list([-100] * 4)
+        n_corr, n_insg = Manager().Value('i', 0), Manager().Value('i', 0)
 
         # loop over timeslots
         for i in range(maxsize):
@@ -102,12 +115,17 @@ while True:
             if curr_song.poll() is not None:
                 break
 
-            p = Process(target=tick, args=(i, song_ref))
+            p = Process(target=tick, args=(i, song_ref, curr_ply, n_corr, n_insg))
             p.start()
 
+            print(n_insg.value)
             # wait 20ms for thread
             p.join(max_tick)
 
             if p.is_alive():
                 p.terminate()
                 p.join()
+
+        print(n_corr.value)
+        print(n_insg.value)
+        print(sums_ref)
