@@ -3,11 +3,11 @@
 from json import loads
 from math import ceil
 from multiprocessing import Process, Manager
+
 from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize, exit
 from time import sleep
-import math
 
 '''
 game loop for playing
@@ -25,7 +25,7 @@ color_map = {
     3: "yellow",
     4: "blue"
 }
-latency_light, latency_correct, max_tick = 100, 20, 0.02
+latency_light, latency_correct, latency_double, max_tick = 100, 20, 5, 0.02
 
 
 # writes color changes to arduino
@@ -34,10 +34,10 @@ def process_lighting(color_id: int, intensity: int):
 
 
 # turns of lights after indication from song_ref
-def process_lights_turn_off(color_id: int):
+def process_lights_turn_off(color_id: int, timer: int):
     # TODO adapt color turning off - change only one light at a time, at first red1, red2, red3, then wait and blacken
     # TODO maybe priority queue, where the indication of a next light has priority over the turning off
-    sleep(1)
+    sleep(timer)
     process_lighting(color_id, 0)
 
 
@@ -54,31 +54,40 @@ def update_lights(timeslot: int, _sref, _curr_play):
             _sref[color_map[j]] = _sref[color_map[j]][1:-1]
 
             # spawn background process to disable light
-            Process(target=process_lights_turn_off, args=(j,)).start()
+            Process(target=process_lights_turn_off, args=(j, 1)).start()
 
             # block to not overwrite serial
             sleep(max_tick)
 
 
 # function wrapper for process
-def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg):
+def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
     try:
 
         # if arduino needs lighting update only do this to not overwrite serial
         update_lights(timeslot, _sref, _curr_ply)
 
-        data_in = int(ceil(int(serial.readline()) / 2))
-        print(data_in)
+        data_in = str(serial.readline()).replace("b'", "").replace("\\r\\n'", "")
 
-        # blocks until sound int on serial and plays it
-        Popen(["afplay", sound_map[data_in]])
+        # is hearth rate
+        if '.' in data_in:
+            _heart_avg.append(int(data_in.replace(".", "")))
 
-        _n_insg.value += 1
+        else:
 
-        # if played in bounds
-        if timeslot - latency_correct < _curr_ply[data_in - 1] < timeslot + latency_correct:
-            _n_corr.value += 1
-            _curr_ply[data_in] = -100
+            data_in = int(ceil(int(data_in) / 2))
+
+            # sufficiently after last played
+            if _curr_ply[data_in - 1] + latency_double < timeslot:
+
+                # blocks until sound int on serial and plays it
+                Popen(["afplay", sound_map[data_in]])
+
+                _n_insg.value += 1
+                # if played in bounds
+                if timeslot - latency_correct < _curr_ply[data_in - 1] < timeslot + latency_correct:
+                    _n_corr.value += 1
+                    _curr_ply[data_in] = -100
 
         # makes sure process does not return early
         sleep(max_tick)
@@ -105,8 +114,8 @@ while True:
         sums_ref = sum([len(song_ref[color_map[x]]) for x in range(1, 5)])
 
         # init scores
-        curr_ply = Manager().list([-100] * 4)
-        n_corr, n_insg = Manager().Value('i', 0), Manager().Value('i', 0)
+        curr_ply = Manager().list([-10000] * 4)
+        n_corr, n_insg, heart_avg = Manager().Value('i', 0), Manager().Value('i', 0), Manager().list()
 
         # loop over timeslots
         for i in range(maxsize):
@@ -115,10 +124,9 @@ while True:
             if curr_song.poll() is not None:
                 break
 
-            p = Process(target=tick, args=(i, song_ref, curr_ply, n_corr, n_insg))
+            p = Process(target=tick, args=(i, song_ref, curr_ply, n_corr, n_insg, heart_avg))
             p.start()
 
-            print(n_insg.value)
             # wait 20ms for thread
             p.join(max_tick)
 
@@ -126,6 +134,17 @@ while True:
                 p.terminate()
                 p.join()
 
+        n_wrong = n_insg.value - n_corr.value
         print(n_corr.value)
         print(n_insg.value)
         print(sums_ref)
+
+        print(sum(list(heart_avg)) / len(heart_avg))
+
+        # TODO send to Qlearning part
+        # amount correctly played subtracted the number of unnecessary touches
+        score = int(100 * (n_corr.value / sums_ref) - max((100 * (n_insg.value - sums_ref) / sums_ref), 0))
+        print(score)
+
+        # TODO send to motor
+        # serial.write("{}{}\n".format(9, score / 10).encode('ascii'))
