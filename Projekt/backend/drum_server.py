@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from json import loads
+from json import load
 from math import ceil
 from multiprocessing import Process, Manager
 
@@ -8,6 +9,9 @@ from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize, exit
 from time import sleep
+
+from QLearning import QLearning
+from DifficultyCalculator import calculateDifficultyScore
 
 '''
 game loop for playing
@@ -26,6 +30,8 @@ color_map = {
     4: "blue"
 }
 latency_light, latency_correct, latency_double, max_tick = 100, 20, 5, 0.02
+heart_rate_bound_low = 70
+heart_rate_bound_high = 80
 
 
 # writes color changes to arduino
@@ -99,10 +105,31 @@ def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
 # adjust serial port according to arduino connection
 serial = Serial("/dev/cu.usbmodem1411", 115200)
 
+# read song list
+with open("songList.json") as data_file:
+    songListParsed = load(data_file)
+songList = songListParsed["songs"]
+
+# init q learning
+initialMatrix = [0.0]*len(songList)
+for i in range(0, len(songList)):
+    initialMatrix[i] = calculateDifficultyScore("sounds_json/{}.json".format(songList[i]))
+
+qLearning = QLearning(initialMatrix)
+
 while True:
-    song_name = input("Enter mp3 filename (w/o ending): ")
-    if song_name == "exit":
-        exit(0)
+    # used for entering a song name
+    #song_name = input("Enter mp3 filename (w/o ending): ")
+    #if song_name == "exit":
+    #    exit(0)
+
+    # get next song
+    current_song_index = qLearning.getNext()
+    song_name = songList[current_song_index]
+
+    print(songList)
+    print(qLearning.getQMatrix())
+    print(current_song_index)
 
     curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_name)])
 
@@ -139,11 +166,22 @@ while True:
         print(n_insg.value)
         print(sums_ref)
 
-        print(sum(list(heart_avg)) / len(heart_avg))
+        avg_heart_rate = sum(list(heart_avg)) / len(heart_avg)
+        print(avg_heart_rate)
 
-        # TODO send to Qlearning part
         # amount correctly played subtracted the number of unnecessary touches
         score = int(100 * (n_corr.value / sums_ref) - max((100 * (n_insg.value - sums_ref) / sums_ref), 0))
+        # add bonus points based on average heart rate
+        if avg_heart_rate < heart_rate_bound_low:
+            score -= 5
+        if avg_heart_rate > heart_rate_bound_high:
+            score += 5
+
+        # make sure 0 <= score <= 100
+        score = min(max(score, 0), 100)
+        
+        # send to Qlearning part
+        qLearning.updateQMatrix(current_song_index, score)
         print(score)
 
         # TODO send to motor

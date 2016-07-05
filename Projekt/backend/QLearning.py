@@ -13,8 +13,8 @@ class QLearning:
     epsilon = 10;
     phi = 0.2;
 
-    def __init__(self, states):
-        self.qMatrix = [0.0] * states;
+    def __init__(self, initialMatrix):
+        self.qMatrix = initialMatrix
 
     def getQMatrix(self):
         return self.qMatrix;
@@ -48,10 +48,10 @@ class QLearning:
         return matches[randint(0, len(matches) - 1)];
 
 
-x = QLearning(5);
-x.updateQMatrix(0, 75);
-x.updateQMatrix(1, 90);
-x.updateQMatrix(3, 60);
-print(x.getQMatrix());
-print("");
-print(x.getNext());
+#x = QLearning(5);
+#x.updateQMatrix(0, 75);
+#x.updateQMatrix(1, 90);
+#x.updateQMatrix(3, 60);
+#print(x.getQMatrix());
+#print("");
+#print(x.getNext());
