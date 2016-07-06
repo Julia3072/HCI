@@ -1,17 +1,20 @@
 #!/usr/bin/env python
 
-from json import loads
+from json import load
 from math import ceil
 from multiprocessing import Process, Manager
 
 from serial import Serial, SerialException
 from subprocess import Popen
-from sys import maxsize, exit
+from sys import maxsize
 from time import sleep
 
-'''
+from .q_learning import QLearning
+from .calculations import calculate_difficulty_score, calculate_song_score
+
+"""
 game loop for playing
-'''
+"""
 
 sound_map = {
     1: "sounds_mp3/CH.mp3",
@@ -28,13 +31,17 @@ color_map = {
 latency_light, latency_correct, latency_double, max_tick = 100, 20, 5, 0.02
 
 
-# writes color changes to arduino
 def process_lighting(color_id: int, intensity: int):
+    """
+    writes color changes to arduino
+    """
     serial.write("{}{}\n".format(color_id, intensity).encode('ascii'))
 
 
-# turns of lights after indication from song_ref
 def process_lights_turn_off(color_id: int, timer: int):
+    """
+    turns of lights after indication from song_ref
+    """
     # TODO adapt color turning off - change only one light at a time, at first red1, red2, red3, then wait and blacken
     # TODO maybe priority queue, where the indication of a next light has priority over the turning off
     sleep(timer)
@@ -42,6 +49,9 @@ def process_lights_turn_off(color_id: int, timer: int):
 
 
 def update_lights(timeslot: int, _sref, _curr_play):
+    """
+    set lights on arduino if in reference json
+    """
     for j in range(1, 5):
 
         # if sound played within next 20 timeslots
@@ -60,8 +70,10 @@ def update_lights(timeslot: int, _sref, _curr_play):
             sleep(max_tick)
 
 
-# function wrapper for process
 def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
+    """
+    function wrapper for process
+    """
     try:
 
         # if arduino needs lighting update only do this to not overwrite serial
@@ -99,17 +111,25 @@ def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
 # adjust serial port according to arduino connection
 serial = Serial("/dev/cu.usbmodem1411", 115200)
 
+# read song list
+with open("songList.json") as data_file:
+    songList = load(data_file)["songs"]
+
+    # init q learning with initial matrix
+    qLearning = QLearning(
+        [calculate_difficulty_score("sounds_json/{}.json".format(songList[i])) for i in range(0, len(songList))])
+
 while True:
-    song_name = input("Enter mp3 filename (w/o ending): ")
-    if song_name == "exit":
-        exit(0)
+    # get next song
+    current_song_index = qLearning.get_next()
+    song_name = songList[qLearning.get_next()]
 
     curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_name)])
 
     with open("sounds_json/{}.json".format(song_name), "r") as song_ref:
-        song_ref = loads(song_ref.readlines()[0])
-        # init reference dictionary
+        song_ref = load(song_ref)
 
+        # init reference dictionary
         song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
         sums_ref = sum([len(song_ref[color_map[x]]) for x in range(1, 5)])
 
@@ -134,17 +154,10 @@ while True:
                 p.terminate()
                 p.join()
 
-        n_wrong = n_insg.value - n_corr.value
-        print(n_corr.value)
-        print(n_insg.value)
-        print(sums_ref)
+        score = calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
 
-        print(sum(list(heart_avg)) / len(heart_avg))
-
-        # TODO send to Qlearning part
-        # amount correctly played subtracted the number of unnecessary touches
-        score = int(100 * (n_corr.value / sums_ref) - max((100 * (n_insg.value - sums_ref) / sums_ref), 0))
-        print(score)
+        # send to Qlearning part
+        qLearning.update_q_matrix(current_song_index, score)
 
         # TODO send to motor
         # serial.write("{}{}\n".format(9, score / 10).encode('ascii'))

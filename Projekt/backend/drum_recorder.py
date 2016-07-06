@@ -1,4 +1,4 @@
-from json import dumps
+from json import dump
 from math import ceil
 from multiprocessing import Process, Manager
 from serial import Serial, SerialException
@@ -84,4 +84,5 @@ for i in range(maxsize):
 print(song_desc)
 
 with open("sounds_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
-    song_res.write(dumps(dict(song_desc)))
+    # TODO from dumps to dump test
+    song_res.write(dump(dict(song_desc)))
