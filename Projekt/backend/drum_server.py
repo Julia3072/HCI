@@ -1,26 +1,29 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from json import load
 from math import ceil
 from multiprocessing import Process, Manager
-
-from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize
 from time import sleep
 
-from .q_learning import QLearning
-from .calculations import calculate_difficulty_score, calculate_song_score
+from serial import Serial, SerialException
+
+from backend import q_learning
+from backend import calculations
 
 """
 game loop for playing
 """
 
+# possible songs for qlearning
+song_list = ["enter_sandman", "sample3"]
+
 sound_map = {
-    1: "sounds_mp3/CH.mp3",
-    2: "sounds_mp3/CL.mp3",
-    3: "sounds_mp3/RS.mp3",
-    4: "sounds_mp3/SD0000.mp3"
+    1: "sounds/Flam-01.wav",
+    2: "sounds/Hat-02.wav",
+    3: "sounds/SnrOff-02.wav",
+    4: "sounds/Rim-02.wav"
 }
 color_map = {
     1: "red",
@@ -111,22 +114,19 @@ def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
 # adjust serial port according to arduino connection
 serial = Serial("/dev/cu.usbmodem1411", 115200)
 
-# read song list
-with open("songList.json") as data_file:
-    songList = load(data_file)["songs"]
-
-    # init q learning with initial matrix
-    qLearning = QLearning(
-        [calculate_difficulty_score("sounds_json/{}.json".format(songList[i])) for i in range(0, len(songList))])
+# init q learning with initial matrix
+qLearning = q_learning.QLearning(
+    [calculations.calculate_difficulty_score("songs_json/{}.json".format(song_list[i])) for i in
+     range(0, len(song_list))])
 
 while True:
     # get next song
     current_song_index = qLearning.get_next()
-    song_name = songList[qLearning.get_next()]
+    song_name = song_list[qLearning.get_next()]
 
-    curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_name)])
+    curr_song = Popen(["afplay", "songs/{}.wav".format(song_name)])
 
-    with open("sounds_json/{}.json".format(song_name), "r") as song_ref:
+    with open("songs_json/{}.json".format(song_name), "r") as song_ref:
         song_ref = load(song_ref)
 
         # init reference dictionary
@@ -154,7 +154,9 @@ while True:
                 p.terminate()
                 p.join()
 
-        score = calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
+        score = calculations.calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
+
+        print("score is".format(score))
 
         # send to Qlearning part
         qLearning.update_q_matrix(current_song_index, score)
