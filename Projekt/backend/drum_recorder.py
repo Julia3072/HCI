@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from json import dump
 from math import ceil
 from multiprocessing import Process, Manager
@@ -5,40 +7,35 @@ from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize
 
+from backend import drum_server as ds
+
 '''
 recording drum sounds for reference values
 '''
 
-sound_map = {
-    1: "sounds_mp3/CH.mp3",
-    2: "sounds_mp3/CL.mp3",
-    3: "sounds_mp3/RS.mp3",
-    4: "sounds_mp3/SD0000.mp3"
-}
-color_map = {
-    1: "red",
-    2: "green",
-    3: "yellow",
-    4: "blue"
-}
-
 
 def handle_sound_ext(sid):
-    # mapping capacitive sensor to sound
-    Popen(["afplay", sound_map[int(sid)]])
+    """
+    mapping capacitive sensor to sound/light
+    """
+    Popen(["afplay", ds.sound_map[int(sid)]])
 
     # red = 1, green = 2, yellow = 3, blue = 4
     # intensity from 0 to 3 lights activated
     serial.write("{}{}\n".format(sid, 3).encode('ascii'))
 
 
-# add color/timeslot to json
 def handle_sound_int(sid, timeslot, sd):
-    sd[color_map[sid]] = sd[color_map[sid]] + [timeslot]
+    """
+    add color/timeslot to json
+    """
+    sd[ds.color_map[sid]] = sd[ds.color_map[sid]] + [timeslot]
 
 
-# function wrapper for process
 def tick(timeslot, _sd):
+    """
+    function wrapper for process
+    """
     try:
 
         data = serial.readline()
@@ -59,10 +56,10 @@ def tick(timeslot, _sd):
 serial = Serial("/dev/cu.usbmodem1411", 115200)
 
 # proxy dict to share across different processes
-song_desc = Manager().dict({"song_name": input("Enter mp3 filename (w/o ending): "),
+song_desc = Manager().dict({"song_name": input("Enter filename (w/o ending): "),
                             "green": [], "red": [], "blue": [], "yellow": []})
 
-curr_song = Popen(["afplay", "sounds_mp3/{}.mp3".format(song_desc["song_name"])])
+curr_song = Popen(["afplay", "songs/{}.wav".format(song_desc["song_name"])])
 
 # loop over timeslots while song is playing
 for i in range(maxsize):
@@ -75,7 +72,7 @@ for i in range(maxsize):
     p.start()
 
     # wait 20ms for thread
-    p.join(0.02)
+    p.join(ds.max_tick)
 
     if p.is_alive():
         p.terminate()
@@ -83,6 +80,6 @@ for i in range(maxsize):
 
 print(song_desc)
 
-with open("sounds_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
+with open("songs_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
     # TODO from dumps to dump test
     song_res.write(dump(dict(song_desc)))
