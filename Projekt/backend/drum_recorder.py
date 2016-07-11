@@ -6,6 +6,7 @@ from multiprocessing import Process, Manager
 from serial import Serial, SerialException
 from subprocess import Popen
 from sys import maxsize
+from time import sleep
 
 from backend import drum_server as ds
 
@@ -32,7 +33,7 @@ def handle_sound_int(sid, timeslot, sd):
     sd[ds.color_map[sid]] = sd[ds.color_map[sid]] + [timeslot]
 
 
-def tick(timeslot, _sd):
+def tick(timeslot, _sd, _curr_ply):
     """
     function wrapper for process
     """
@@ -43,43 +44,52 @@ def tick(timeslot, _sd):
 
         sound_id = ceil(int(data) / 2)
 
-        handle_sound_ext(sound_id)
-        handle_sound_int(sound_id, timeslot, _sd)
+        # disregard double recognition
+        if _curr_ply[sound_id - 1] + ds.latency_double < timeslot:
+            _curr_ply[sound_id - 1] = timeslot
+
+            handle_sound_ext(sound_id)
+            handle_sound_int(sound_id, timeslot, _sd)
 
     except ValueError:
         pass
     except (KeyError, SerialException) as e:
         print(e)
+    finally:
+        sleep(ds.max_tick)
 
 
-# adjust serial port according to arduino connection
-serial = Serial("/dev/cu.usbmodem1411", 115200)
+if __name__ == "__main__":
 
-# proxy dict to share across different processes
-song_desc = Manager().dict({"song_name": input("Enter filename (w/o ending): "),
-                            "green": [], "red": [], "blue": [], "yellow": []})
+    # adjust serial port according to arduino connection
+    serial = Serial("/dev/cu.usbmodem1421", 115200)
 
-curr_song = Popen(["afplay", "songs/{}.wav".format(song_desc["song_name"])])
+    # proxy dict to share across different processes
+    song_desc = Manager().dict({"song_name": input("Enter filename (w/o ending): "),
+                                "green": [], "red": [], "blue": [], "yellow": []})
 
-# loop over timeslots while song is playing
-for i in range(maxsize):
+    curr_song = Popen(["afplay", "songs/{}.wav".format(song_desc["song_name"])])
 
-    # break if background song is not playing
-    if curr_song.poll() is not None:
-        break
+    curr_ply = Manager().list([-10000] * 4)
 
-    p = Process(target=tick, name="Tick", args=(i, song_desc))
-    p.start()
+    # loop over timeslots while song is playing
+    for i in range(maxsize):
 
-    # wait 20ms for thread
-    p.join(ds.max_tick)
+        # break if background song is not playing
+        if curr_song.poll() is not None:
+            break
 
-    if p.is_alive():
-        p.terminate()
-        p.join()
+        p = Process(target=tick, name="Tick", args=(i, song_desc, curr_ply))
+        p.start()
 
-print(song_desc)
+        # wait 20ms for thread
+        p.join(ds.max_tick)
 
-with open("songs_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
-    # TODO from dumps to dump test
-    song_res.write(dump(dict(song_desc)))
+        if p.is_alive():
+            p.terminate()
+            p.join()
+
+    print(song_desc)
+
+    with open("songs_json/{}.json".format(song_desc["song_name"]), "w") as song_res:
+        dump(dict(song_desc), song_res)

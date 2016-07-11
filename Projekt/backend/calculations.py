@@ -65,7 +65,7 @@ def calculate_song_score(n_correct, n_insg, sums_ref, heart_avg):
         calculates the score of a played game
     """
     # amount correctly played subtracted the number of unnecessary touches
-    score = int(100 * (n_correct / sums_ref) - max((100 * (n_insg.value - sums_ref) / sums_ref), 0))
+    score = int(100 * (n_correct / sums_ref) - max((100 * (n_insg - sums_ref) / sums_ref), 0))
 
     # add bonus points based on average heart rate
     avg_heart_rate = sum(list(heart_avg)) / len(heart_avg)

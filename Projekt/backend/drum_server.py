@@ -17,7 +17,10 @@ game loop for playing
 """
 
 # possible songs for qlearning
-song_list = ["enter_sandman", "sample3"]
+song_list = ["ArcticMonkeys_Brianstorm",
+             "BeachBoys_CaliforniaGirls",
+             "FranzFerdinand_TakeMeOut",
+             "RedHotChiliPeppers _DaniCalifornia"]
 
 sound_map = {
     1: "sounds/Flam-01.wav",
@@ -73,7 +76,7 @@ def update_lights(timeslot: int, _sref, _curr_play):
             sleep(max_tick)
 
 
-def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
+def tick(timeslot: int, _sref, _curr_ply, _last_ply, _n_corr, _n_insg, _heart_avg):
     """
     function wrapper for process
     """
@@ -93,73 +96,75 @@ def tick(timeslot: int, _sref, _curr_ply, _n_corr, _n_insg, _heart_avg):
             data_in = int(ceil(int(data_in) / 2))
 
             # sufficiently after last played
-            if _curr_ply[data_in - 1] + latency_double < timeslot:
+            if _last_ply[data_in - 1] + latency_double < timeslot:
 
                 # blocks until sound int on serial and plays it
                 Popen(["afplay", sound_map[data_in]])
 
                 _n_insg.value += 1
+                _last_ply[data_in - 1] = timeslot
+
                 # if played in bounds
                 if timeslot - latency_correct < _curr_ply[data_in - 1] < timeslot + latency_correct:
                     _n_corr.value += 1
-                    _curr_ply[data_in] = -100
-
-        # makes sure process does not return early
-        sleep(max_tick)
+                    _curr_ply[data_in - 1] = -100
 
     except (ValueError, KeyError, SerialException) as e:
         print(e)
+    finally:
+        # makes sure process does not return early
+        sleep(max_tick)
 
 
-# adjust serial port according to arduino connection
-serial = Serial("/dev/cu.usbmodem1411", 115200)
+if __name__ == "__main__":
 
-# init q learning with initial matrix
-qLearning = q_learning.QLearning(
-    [calculations.calculate_difficulty_score("songs_json/{}.json".format(song_list[i])) for i in
-     range(0, len(song_list))])
+    # adjust serial port according to arduino connection
+    serial = Serial("/dev/cu.usbmodem1421", 115200)
 
-while True:
-    # get next song
-    current_song_index = qLearning.get_next()
-    song_name = song_list[qLearning.get_next()]
+    # init q learning with initial matrix
+    qLearning = q_learning.QLearning(
+        [calculations.calculate_difficulty_score("songs_json/{}.json".format(song_list[i])) for i in
+         range(0, len(song_list))])
 
-    curr_song = Popen(["afplay", "songs/{}.wav".format(song_name)])
+    while True:
+        # get next song
+        current_song_index = qLearning.get_next()
+        song_name = song_list[qLearning.get_next()]
 
-    with open("songs_json/{}.json".format(song_name), "r") as song_ref:
-        song_ref = load(song_ref)
+        curr_song = Popen(["afplay", "songs/{}.wav".format(song_name)])
 
-        # init reference dictionary
-        song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
-        sums_ref = sum([len(song_ref[color_map[x]]) for x in range(1, 5)])
+        with open("songs_json/{}.json".format(song_name), "r") as song_ref:
+            song_ref = load(song_ref)
 
-        # init scores
-        curr_ply = Manager().list([-10000] * 4)
-        n_corr, n_insg, heart_avg = Manager().Value('i', 0), Manager().Value('i', 0), Manager().list()
+            # init reference dictionary
+            song_ref = Manager().dict({color_map[x]: song_ref[color_map[x]] for x in range(1, 5)})
+            sums_ref = sum([len(song_ref[color_map[x]]) for x in range(1, 5)])
 
-        # loop over timeslots
-        for i in range(maxsize):
+            # init scores
+            curr_ply, last_ply = Manager().list([-10000] * 4), Manager().list([-10000] * 4)
+            n_corr, n_insg, heart_avg = Manager().Value('i', 0), Manager().Value('i', 0), Manager().list()
 
-            # break if background song is not playing
-            if curr_song.poll() is not None:
-                break
+            # loop over timeslots
+            for i in range(maxsize):
 
-            p = Process(target=tick, args=(i, song_ref, curr_ply, n_corr, n_insg, heart_avg))
-            p.start()
+                # break if background song is not playing
+                if curr_song.poll() is not None:
+                    break
 
-            # wait 20ms for thread
-            p.join(max_tick)
+                p = Process(target=tick, args=(i, song_ref, curr_ply, last_ply, n_corr, n_insg, heart_avg))
+                p.start()
 
-            if p.is_alive():
-                p.terminate()
-                p.join()
+                # wait 20ms for thread
+                p.join(max_tick)
 
-        score = calculations.calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
+                if p.is_alive():
+                    p.terminate()
+                    p.join()
 
-        print("score is".format(score))
+            score = calculations.calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
 
-        # send to Qlearning part
-        qLearning.update_q_matrix(current_song_index, score)
+            # send to Qlearning part
+            qLearning.update_q_matrix(current_song_index, score)
 
-        # TODO send to motor
-        # serial.write("{}{}\n".format(9, score / 10).encode('ascii'))
+            # TODO send to motor
+            # serial.write("{}{}\n".format(9, score / 10).encode('ascii'))
