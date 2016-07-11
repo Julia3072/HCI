@@ -11,7 +11,7 @@ class QLearning:
     minValue = 0
     maxValue = 100
     epsilon = 10
-    phi = 0.2
+    phi = 0.4
 
     def __init__(self, initial_matrix):
         self.qMatrix = initial_matrix

@@ -17,10 +17,14 @@ game loop for playing
 """
 
 # possible songs for qlearning
-song_list = ["ArcticMonkeys_Brianstorm",
-             "BeachBoys_CaliforniaGirls",
-             "FranzFerdinand_TakeMeOut",
-             "RedHotChiliPeppers _DaniCalifornia"]
+song_list = [
+    # "ArcticMonkeys_Brianstorm",
+    # "RedHotChiliPeppers_DaniCalifornia"
+    "FranzFerdinand_TakeMeOut"
+    # "BeachBoys_CaliforniaGirls"  # ,
+    # "FranzFerdinand_TakeMeOut",
+    # "RedHotChiliPeppers_DaniCalifornia"
+]
 
 sound_map = {
     1: "sounds/Flam-01.wav",
@@ -29,8 +33,8 @@ sound_map = {
     4: "sounds/Rim-02.wav"
 }
 color_map = {
-    1: "red",
-    2: "green",
+    1: "green",
+    2: "red",
     3: "yellow",
     4: "blue"
 }
@@ -58,16 +62,18 @@ def update_lights(timeslot: int, _sref, _curr_play):
     """
     set lights on arduino if in reference json
     """
+
     for j in range(1, 5):
 
         # if sound played within next 20 timeslots
         if len(_sref[color_map[j]]) > 0 and timeslot + latency_light > _sref[color_map[j]][0]:
+
             process_lighting(j, 3)
 
             _curr_play[j - 1] = _sref[color_map[j]][0]
 
             # update reference and discard fist element
-            _sref[color_map[j]] = _sref[color_map[j]][1:-1]
+            _sref[color_map[j]] = _sref[color_map[j]][1:]
 
             # spawn background process to disable light
             Process(target=process_lights_turn_off, args=(j, 1)).start()
@@ -162,11 +168,12 @@ if __name__ == "__main__":
                     p.join()
 
             score = calculations.calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
+            print(score)
 
             # send to Qlearning part
             qLearning.update_q_matrix(current_song_index, score)
 
-            # TODO send to motor
-            serial.write("1{}\n".format(score if score >= 10 else "0{}".format(score)).encode('ascii'))
+            # TODO serial.write("1{}\n".format(score if score >= 10 else "0{}".format(score)).encode('ascii'))
+            serial.write("1{}\n".format(99).encode('ascii'))
 
             sleep(20)
