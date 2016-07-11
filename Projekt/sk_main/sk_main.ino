@@ -34,7 +34,7 @@ uint16_t currtouched = 0;
 uint8_t touch = 70;
 uint8_t rel = 50;
 int threshold_on_alu_things = 150;
-int threshold_on_faden = 250;
+int threshold_on_faden = 120;
 /* Neopixel */
 #define PIN 6
 
@@ -52,6 +52,7 @@ void setup() {
 
   pinMode(blinkPin, OUTPUT);        // pin that will blink to your heartbeat!
   pinMode(fadePin, OUTPUT);         // pin that will fade to your heartbeat!
+
   Serial.begin(115200);             // we agree to talk fast!
   interruptSetup();                 // sets up to read Pulse Sensor signal every 2mS
 
@@ -71,7 +72,6 @@ void setup() {
   /* Servo Setup*/
   pinMode(motorPin, OUTPUT);
   myservo.attach(motorPin);
-  Serial.begin(9600);
 }
 
 void loop() {
@@ -79,28 +79,30 @@ void loop() {
   touchedPin();
 
   if (Serial.available()) {
-
-    // TODO check for motor update
-    // 100-199
-
     int input = Serial.parseInt();
 
     if (input > 0) {
 
-      //red = 1, green = 2, yellow = 3, blue = 4
-      //intensity from 0 to 3 lights activated
+      if (input >= 100) {
 
-      int color = input / 10;
-      int intensity = input % 10;
+        doReward(input - 100);
+        
+      } else {
 
-      switch (color) {
-        case 1: setPixels(0, 0 + intensity, red); break;
-        case 2: setPixels(3, 3 + intensity, green); break;
-        case 3: setPixels(6, 6 + intensity, yellow); break;
-        case 4: setPixels(9, 9 + intensity, blue); break;
+        //red = 1, green = 2, yellow = 3, blue = 4
+        //intensity from 0 to 3 lights activated
+
+        int color = input / 10;
+        int intensity = input % 10;
+
+        switch (color) {
+          case 1: setPixels(0, 0 + intensity, red); break;
+          case 2: setPixels(3, 3 + intensity, green); break;
+          case 3: setPixels(6, 6 + intensity, yellow); break;
+          case 4: setPixels(9, 9 + intensity, blue); break;
+        }
       }
-    } 
-     
+    }
   }
 }
 
@@ -123,7 +125,7 @@ void touchedPin() {
   currtouched = cap.touched();
 
   for (uint8_t i = 0; i < 12; i++) {
-    if ((cap.filteredData(i) < threshold_on_alu_things) && !(lasttouched & _BV(i))) {
+    if ((cap.filteredData(i) < threshold_on_faden) && !(lasttouched & _BV(i))) {
       Serial.println(i );
       Serial.print( '.' );
       Serial.println(BPM);
@@ -161,7 +163,7 @@ void doReward(int percent) {
   // 100..199
   // 100 percent = 140 degrees
   int maxDegrees = 140;
-  int deg =  ((float)(percent-100) / 100) * maxDegrees;
+  int deg =  ((float)(percent - 100) / 100) * maxDegrees;
   doUp(deg);
   delay(2000);
   if (percent = 100) {
@@ -177,26 +179,19 @@ void doReward(int percent) {
 }
 
 void doUp(int to) {
-  Serial.write("doUp()");
-
   for (pos = 0; pos < to; pos += 1)
   {
-    myservo.write(pos); // tell servo to go to position in variable 'pos'
-    delay(15); // waits 15ms for the servo to reach the position
+    myservo.write(pos);
+    delay(15);
   }
-
-
 }
 
 void doDown(int from) {
-  Serial.write("doDown()");
-
   for (pos = from; pos >= 1; pos -= 1) // goes from 180 degrees to 0 degrees
   {
-    myservo.write(pos); // tell servo to go to position in variable 'pos'
-    delay(15); // waits 15ms for the servo to reach the position
+    myservo.write(pos);
+    delay(15);
   }
-
 }
 
 
@@ -211,7 +206,6 @@ void doBlinking(int del) {
   delay(del);
 
   doBlack();
-
 }
 
 void doBlack() {
@@ -219,7 +213,6 @@ void doBlack() {
     strip.setPixelColor(i, black);
     strip.show();
   }
-
 }
 
 

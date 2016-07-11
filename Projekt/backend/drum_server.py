@@ -167,4 +167,6 @@ if __name__ == "__main__":
             qLearning.update_q_matrix(current_song_index, score)
 
             # TODO send to motor
-            # serial.write("{}{}\n".format(9, score / 10).encode('ascii'))
+            serial.write("1{}\n".format(score if score >= 10 else "0{}".format(score)).encode('ascii'))
+
+            sleep(20)
