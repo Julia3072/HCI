@@ -18,12 +18,11 @@ game loop for playing
 
 # possible songs for qlearning
 song_list = [
-    # "ArcticMonkeys_Brianstorm",
-    # "RedHotChiliPeppers_DaniCalifornia"
-    "FranzFerdinand_TakeMeOut"
-    # "BeachBoys_CaliforniaGirls"  # ,
-    # "FranzFerdinand_TakeMeOut",
-    # "RedHotChiliPeppers_DaniCalifornia"
+    "ArcticMonkeys_Brianstorm",
+    "FranzFerdinand_TakeMeOut",
+    "BeachBoys_CaliforniaGirls",
+    "FranzFerdinand_TakeMeOut",
+    "RedHotChiliPeppers_DaniCalifornia"
 ]
 
 sound_map = {
@@ -38,7 +37,7 @@ color_map = {
     3: "yellow",
     4: "blue"
 }
-latency_light, latency_correct, latency_double, max_tick = 100, 20, 5, 0.02
+latency_light, latency_correct, latency_double, max_tick = 100, 50, 5, 0.02
 
 
 def process_lighting(color_id: int, intensity: int):
@@ -52,8 +51,6 @@ def process_lights_turn_off(color_id: int, timer: int):
     """
     turns of lights after indication from song_ref
     """
-    # TODO adapt color turning off - change only one light at a time, at first red1, red2, red3, then wait and blacken
-    # TODO maybe priority queue, where the indication of a next light has priority over the turning off
     sleep(timer)
     process_lighting(color_id, 0)
 
@@ -67,7 +64,6 @@ def update_lights(timeslot: int, _sref, _curr_play):
 
         # if sound played within next 20 timeslots
         if len(_sref[color_map[j]]) > 0 and timeslot + latency_light > _sref[color_map[j]][0]:
-
             process_lighting(j, 3)
 
             _curr_play[j - 1] = _sref[color_map[j]][0]
@@ -168,12 +164,13 @@ if __name__ == "__main__":
                     p.join()
 
             score = calculations.calculate_song_score(n_corr.value, n_insg.value, sums_ref, heart_avg)
-            print(score)
 
             # send to Qlearning part
             qLearning.update_q_matrix(current_song_index, score)
 
-            # TODO serial.write("1{}\n".format(score if score >= 10 else "0{}".format(score)).encode('ascii'))
-            serial.write("1{}\n".format(99).encode('ascii'))
+            score = 99 if score == 100 else score
+            score = score if score >= 10 else "0{}".format(score)
+
+            serial.write("1{}\n".format(score).encode('ascii'))
 
             sleep(20)
