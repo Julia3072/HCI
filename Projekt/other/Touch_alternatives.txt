@@ -1,3 +1,0 @@
-https://www.amazon.de/Adafruit-Capacitive-Touch-Shield-Arduino/dp/B01BMRDCYA/ref=sr_1_8?ie=UTF8&qid=1466587679&sr=8-8&keywords=arduino+touch+sensor
-
-http://www.instructables.com/id/How-To-Use-Touch-Sensors-With-Arduino/?ALLSTEPS
