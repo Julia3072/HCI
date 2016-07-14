@@ -9,7 +9,7 @@ from sys import maxsize
 from time import sleep
 
 
- import drum_server as ds
+from Code import drum_server as ds
 
 '''
 recording drum sounds for reference values
@@ -63,7 +63,7 @@ def tick(timeslot, _sd, _curr_ply):
 if __name__ == "__main__":
 
     # adjust serial port according to arduino connection
-    serial = Serial("/dev/cu.usbmodem1421", 115200)
+    serial = Serial("/dev/cu.usbmodem1411", 115200)
 
     # proxy dict to share across different processes
     song_desc = Manager().dict({"song_name": input("Enter filename (w/o ending): "),
@@ -73,6 +73,7 @@ if __name__ == "__main__":
 
     curr_ply = Manager().list([-10000] * 4)
 
+    # TODO save timestamps
     # loop over timeslots while song is playing
     for i in range(maxsize):
 

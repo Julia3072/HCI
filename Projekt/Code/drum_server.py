@@ -9,8 +9,8 @@ from time import sleep
 
 from serial import Serial, SerialException
 
-from backend import q_learning
-from backend import calculations
+from Code import q_learning
+from Code import calculations
 
 """
 game loop for playing
@@ -20,7 +20,6 @@ game loop for playing
 song_list = [
     "ArcticMonkeys_Brianstorm",
     "FranzFerdinand_TakeMeOut",
-    "BeachBoys_CaliforniaGirls",
     "FranzFerdinand_TakeMeOut",
     "RedHotChiliPeppers_DaniCalifornia"
 ]
@@ -173,6 +172,7 @@ if __name__ == "__main__":
             score = 99 if score == 100 else score
             score = score if score >= 10 else "0{}".format(score)
 
-            serial.write("1{}\n".format(score).encode('ascii'))
+            # TODO 99 for demonstration purpose - insert score
+            serial.write("1{}\n".format(99).encode('ascii'))
 
             sleep(20)

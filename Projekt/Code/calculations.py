@@ -68,12 +68,15 @@ def calculate_song_score(n_correct, n_insg, sums_ref, heart_avg):
     score = int(100 * (n_correct / sums_ref) - max((100 * (n_insg - sums_ref) / sums_ref), 0))
 
     # add bonus points based on average heart rate
+    # TODO heartrate currently unused
+    """
     avg_heart_rate = sum(list(heart_avg)) / len(heart_avg)
 
     if avg_heart_rate < heart_rate_bound_low:
         score -= 5
     elif avg_heart_rate > heart_rate_bound_high:
         score += 5
+    """
 
     # make sure 0 <= score <= 100
     return min(max(score, 0), 100)
