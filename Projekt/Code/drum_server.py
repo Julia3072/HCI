@@ -135,6 +135,7 @@ if __name__ == "__main__":
 
         curr_song = Popen(["afplay", "songs/{}.wav".format(song_name)])
 
+        # TODO open single process for light processing / input
         with open("songs_json/{}.json".format(song_name), "r") as song_ref:
             song_ref = load(song_ref)
 
@@ -146,6 +147,7 @@ if __name__ == "__main__":
             curr_ply, last_ply = Manager().list([-10000] * 4), Manager().list([-10000] * 4)
             n_corr, n_insg, heart_avg = Manager().Value('i', 0), Manager().Value('i', 0), Manager().list()
 
+            # TODO change from discrete timeslots to timestamps
             # loop over timeslots
             for i in range(maxsize):
 

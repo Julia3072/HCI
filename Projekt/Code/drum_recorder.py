@@ -8,7 +8,8 @@ from subprocess import Popen
 from sys import maxsize
 from time import sleep
 
-from backend import drum_server as ds
+
+ import drum_server as ds
 
 '''
 recording drum sounds for reference values
